@@ -1,0 +1,5 @@
+{
+  "name": "Ma Jolie Taille - Fidélité",
+  "description": "Application de carte de fidélité pour le bar à couture Ma Jolie Taille à Auxerre. Permet aux clients de consulter leurs points et aux administrateurs de gérer les cartes de fidélité.",
+  "requestFramePermissions": []
+}
