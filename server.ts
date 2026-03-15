@@ -1,22 +1,25 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import * as admin from 'firebase-admin';
 import path from 'path';
 
 // Initialize Firebase Admin
-const serviceAccountStr = process.env.FIREBASE_SERVICE_ACCOUNT;
-if (serviceAccountStr) {
-  try {
+try {
+  const serviceAccountStr = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (serviceAccountStr) {
     const serviceAccount = JSON.parse(serviceAccountStr);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-    console.log('Firebase Admin initialized successfully');
-  } catch (error) {
-    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT:', error);
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log('Firebase Admin initialized successfully');
+    }
+  } else {
+    console.warn('FIREBASE_SERVICE_ACCOUNT environment variable is missing.');
   }
-} else {
-  console.warn('FIREBASE_SERVICE_ACCOUNT environment variable is missing.');
+} catch (error) {
+  console.error('Failed to initialize Firebase Admin:', error);
 }
 
 async function startServer() {
@@ -28,9 +31,13 @@ async function startServer() {
   // API Routes
   app.post('/api/admin/change-password', async (req, res) => {
     try {
+      if (!admin.apps.length) {
+        return res.status(500).json({ error: 'Le serveur n\'est pas correctement configuré avec Firebase Admin. Vérifiez la clé FIREBASE_SERVICE_ACCOUNT dans les paramètres.' });
+      }
+
       const authHeader = req.headers.authorization;
       if (!authHeader?.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Unauthorized' });
+        return res.status(401).json({ error: 'Non autorisé' });
       }
       const idToken = authHeader.split('Bearer ')[1];
       const decodedToken = await admin.auth().verifyIdToken(idToken);
@@ -39,12 +46,12 @@ async function startServer() {
       const db = admin.firestore();
       const userDoc = await db.collection('users').doc(decodedToken.uid).get();
       if (!userDoc.exists || userDoc.data()?.role !== 'admin') {
-        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+        return res.status(403).json({ error: 'Accès refusé : droits administrateur requis' });
       }
 
       const { targetUserId, newPassword } = req.body;
       if (!targetUserId || !newPassword || newPassword.length < 6) {
-        return res.status(400).json({ error: 'Invalid request data. Password must be at least 6 characters.' });
+        return res.status(400).json({ error: 'Données invalides. Le mot de passe doit faire au moins 6 caractères.' });
       }
 
       await admin.auth().updateUser(targetUserId, {
@@ -54,7 +61,7 @@ async function startServer() {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Error changing password:', error);
-      res.status(500).json({ error: error.message || 'Internal server error' });
+      res.status(500).json({ error: error.message || 'Erreur interne du serveur' });
     }
   });
 

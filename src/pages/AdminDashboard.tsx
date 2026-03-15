@@ -166,7 +166,15 @@ export function AdminDashboard() {
         })
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error("Server returned non-JSON:", text);
+        throw new Error('Le serveur a retourné une réponse invalide. La clé Firebase est peut-être mal configurée ou le serveur redémarre.');
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Erreur lors du changement de mot de passe');
