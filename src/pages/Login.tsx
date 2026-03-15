@@ -9,7 +9,8 @@ export function Login() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>('login');
+  const [resetSent, setResetSent] = useState(false);
 
   // Form fields
   const [email, setEmail] = useState('');
@@ -32,8 +33,20 @@ export function Login() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setResetSent(false);
 
     try {
+      if (mode === 'forgot_password') {
+        if (!email) {
+          throw new Error('Veuillez entrer votre adresse email.');
+        }
+        const { sendPasswordResetEmail } = await import('firebase/auth');
+        await sendPasswordResetEmail(auth, email);
+        setResetSent(true);
+        setLoading(false);
+        return;
+      }
+
       if (mode === 'register') {
         if (!firstName || !lastName || !city) {
           throw new Error('Veuillez remplir tous les champs obligatoires.');
@@ -89,7 +102,7 @@ export function Login() {
           Ma Jolie Taille
         </h2>
         <p className="mt-2 text-center text-sm text-stone-600">
-          {mode === 'login' ? 'Connexion à votre espace' : 'Création de votre compte'}
+          {mode === 'login' ? 'Connexion à votre espace' : mode === 'register' ? 'Création de votre compte' : 'Réinitialisation du mot de passe'}
         </p>
       </div>
 
@@ -102,8 +115,25 @@ export function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'register' && (
+          {resetSent && mode === 'forgot_password' ? (
+            <div className="text-center space-y-4">
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">
+                Un e-mail de réinitialisation a été envoyé à <strong>{email}</strong>. Veuillez vérifier votre boîte de réception et vos courriers indésirables (spams).
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setResetSent(false);
+                }}
+                className="text-sm text-rose-600 hover:text-rose-500 font-medium"
+              >
+                Retour à la connexion
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'register' && (
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -160,25 +190,44 @@ export function Login() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">Mot de passe *</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
-              />
-            </div>
+            {mode !== 'forgot_password' && (
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Mot de passe *</label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+            )}
+
+            {mode === 'login' && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('forgot_password');
+                    setError('');
+                    setResetSent(false);
+                  }}
+                  className="text-sm text-stone-500 hover:text-rose-600 font-medium"
+                >
+                  Mot de passe oublié ?
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={loading}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-rose-500 hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 disabled:opacity-50 transition-colors mt-6"
             >
-              {loading ? 'Chargement...' : (mode === 'login' ? 'Se connecter' : 'Créer mon compte')}
+              {loading ? 'Chargement...' : mode === 'login' ? 'Se connecter' : mode === 'register' ? 'Créer mon compte' : 'Envoyer le lien'}
             </button>
           </form>
+          )}
           
           <div className="mt-6 text-center">
             <button
@@ -186,10 +235,11 @@ export function Login() {
               onClick={() => {
                 setMode(mode === 'login' ? 'register' : 'login');
                 setError('');
+                setResetSent(false);
               }}
               className="text-sm text-rose-600 hover:text-rose-500 font-medium"
             >
-              {mode === 'login' 
+              {mode === 'login' || mode === 'forgot_password'
                 ? "Vous n'avez pas de compte ? S'inscrire" 
                 : "Vous avez déjà un compte ? Se connecter"}
             </button>

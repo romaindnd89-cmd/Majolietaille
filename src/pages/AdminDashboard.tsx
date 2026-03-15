@@ -122,8 +122,9 @@ export function AdminDashboard() {
       await sendPasswordResetEmail(auth, email);
       setResetEmailSent(true);
       setTimeout(() => setResetEmailSent(false), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending reset email:", error);
+      alert("Erreur lors de l'envoi de l'email : " + error.message);
     }
   };
 
