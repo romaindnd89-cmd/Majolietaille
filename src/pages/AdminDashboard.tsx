@@ -15,6 +15,13 @@ export function AdminDashboard() {
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  
+  // Password change state
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState('');
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -27,7 +34,10 @@ export function AdminDashboard() {
         setClients(usersData.filter(u => u.role === 'client'));
         setLoading(false);
       },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'users')
+      (error) => {
+        if (!auth.currentUser) return;
+        handleFirestoreError(error, OperationType.LIST, 'users');
+      }
     );
 
     return () => unsubscribe();
@@ -49,6 +59,7 @@ export function AdminDashboard() {
       setClientVisits(visits);
       setLoadingVisits(false);
     }, (error) => {
+      if (!auth.currentUser) return;
       console.error("Error fetching visits:", error);
       setLoadingVisits(false);
     });
@@ -125,6 +136,53 @@ export function AdminDashboard() {
     } catch (error: any) {
       console.error("Error sending reset email:", error);
       alert("Erreur lors de l'envoi de l'email : " + error.message);
+    }
+  };
+
+  const handleDirectPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClient || !newPassword || newPassword.length < 6) {
+      setChangePasswordError('Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+
+    setChangePasswordLoading(true);
+    setChangePasswordError('');
+    setChangePasswordSuccess(false);
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Non authentifié');
+
+      const response = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          targetUserId: selectedClient.id,
+          newPassword: newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors du changement de mot de passe');
+      }
+
+      setChangePasswordSuccess(true);
+      setNewPassword('');
+      setTimeout(() => {
+        setIsChangingPassword(false);
+        setChangePasswordSuccess(false);
+      }, 3000);
+    } catch (error: any) {
+      console.error("Error changing password directly:", error);
+      setChangePasswordError(error.message);
+    } finally {
+      setChangePasswordLoading(false);
     }
   };
 
@@ -363,17 +421,77 @@ export function AdminDashboard() {
                   <Key size={18} className="text-stone-500" />
                   Sécurité
                 </h4>
-                <button
-                  onClick={() => handleResetPassword(selectedClient.email)}
-                  disabled={resetEmailSent}
-                  className="w-full py-2 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Mail size={16} />
-                  {resetEmailSent ? "E-mail envoyé !" : "Envoyer un lien de réinitialisation"}
-                </button>
-                <p className="text-xs text-stone-500 mt-2 text-center">
-                  Un e-mail sera envoyé à {selectedClient.email} pour qu'il puisse choisir un nouveau mot de passe.
-                </p>
+                
+                {!isChangingPassword ? (
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setIsChangingPassword(true)}
+                      className="w-full py-2 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Edit2 size={16} />
+                      Changer le mot de passe manuellement
+                    </button>
+                    
+                    <button
+                      onClick={() => handleResetPassword(selectedClient.email)}
+                      disabled={resetEmailSent}
+                      className="w-full py-2 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Mail size={16} />
+                      {resetEmailSent ? "E-mail envoyé !" : "Envoyer un lien de réinitialisation"}
+                    </button>
+                    <p className="text-xs text-stone-500 mt-2 text-center">
+                      Un e-mail sera envoyé à {selectedClient.email} pour qu'il puisse choisir un nouveau mot de passe.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleDirectPasswordChange} className="space-y-3 bg-stone-50 p-4 rounded-xl border border-stone-200">
+                    <h5 className="text-sm font-medium text-stone-800 mb-2">Nouveau mot de passe</h5>
+                    
+                    {changePasswordError && (
+                      <div className="text-xs text-rose-600 bg-rose-50 p-2 rounded border border-rose-100">
+                        {changePasswordError}
+                      </div>
+                    )}
+                    
+                    {changePasswordSuccess && (
+                      <div className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded border border-emerald-100 flex items-center gap-1">
+                        <Check size={14} /> Mot de passe modifié avec succès !
+                      </div>
+                    )}
+
+                    <input
+                      type="text"
+                      placeholder="Min. 6 caractères"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 text-sm"
+                      disabled={changePasswordLoading || changePasswordSuccess}
+                    />
+                    
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsChangingPassword(false);
+                          setNewPassword('');
+                          setChangePasswordError('');
+                        }}
+                        className="flex-1 py-2 px-3 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 rounded-lg font-medium transition-colors text-sm"
+                        disabled={changePasswordLoading}
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+                        disabled={changePasswordLoading || changePasswordSuccess || newPassword.length < 6}
+                      >
+                        {changePasswordLoading ? 'En cours...' : 'Valider'}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             </div>
           </div>

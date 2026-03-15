@@ -11,6 +11,7 @@ export function Login() {
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>('login');
   const [resetSent, setResetSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   // Form fields
   const [email, setEmail] = useState('');
@@ -19,6 +20,14 @@ export function Login() {
   const [lastName, setLastName] = useState('');
   const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (cooldown > 0) {
+      timer = setTimeout(() => setCooldown(c => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -31,6 +40,8 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (cooldown > 0 && mode === 'forgot_password') return;
+    
     setLoading(true);
     setError('');
     setResetSent(false);
@@ -43,6 +54,7 @@ export function Login() {
         const { sendPasswordResetEmail } = await import('firebase/auth');
         await sendPasswordResetEmail(auth, email);
         setResetSent(true);
+        setCooldown(60);
         setLoading(false);
         return;
       }
@@ -117,8 +129,12 @@ export function Login() {
 
           {resetSent && mode === 'forgot_password' ? (
             <div className="text-center space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">
-                Un e-mail de réinitialisation a été envoyé à <strong>{email}</strong>. Veuillez vérifier votre boîte de réception et vos courriers indésirables (spams).
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm text-left">
+                <p className="font-medium mb-2">Un e-mail de réinitialisation a été envoyé à <strong>{email}</strong>.</p>
+                <ul className="list-disc pl-5 space-y-1 text-xs mt-2">
+                  <li>Vérifiez vos courriers indésirables (spams).</li>
+                  <li><strong>Utilisateurs Hotmail/Outlook :</strong> Si le lien indique qu'il est expiré, cliquez sur <strong>"Répondre"</strong> ou <strong>"Transférer"</strong> dans votre boîte mail. Dans la zone de texte qui s'ouvre, le vrai lien (commençant par https://...) apparaîtra en clair. Copiez-le et collez-le dans votre navigateur.</li>
+                </ul>
               </div>
               <button
                 type="button"
@@ -221,10 +237,10 @@ export function Login() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (mode === 'forgot_password' && cooldown > 0)}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-rose-500 hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 disabled:opacity-50 transition-colors mt-6"
             >
-              {loading ? 'Chargement...' : mode === 'login' ? 'Se connecter' : mode === 'register' ? 'Créer mon compte' : 'Envoyer le lien'}
+              {loading ? 'Chargement...' : mode === 'login' ? 'Se connecter' : mode === 'register' ? 'Créer mon compte' : cooldown > 0 ? `Patientez ${cooldown}s...` : 'Envoyer le lien'}
             </button>
           </form>
           )}

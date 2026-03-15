@@ -15,9 +15,16 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
   const location = useLocation();
 
   useEffect(() => {
+    let unsubscribeDoc: (() => void) | undefined;
+
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = undefined;
+      }
+
       if (user) {
-        const unsubscribeDoc = onSnapshot(
+        unsubscribeDoc = onSnapshot(
           doc(db, 'users', user.uid),
           (docSnap) => {
             if (docSnap.exists()) {
@@ -25,15 +32,24 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
             }
             setLoading(false);
           },
-          (error) => handleFirestoreError(error, OperationType.GET, 'users/' + user.uid)
+          (error) => {
+            // Ignore permission errors if the user is logging out
+            if (!auth.currentUser) return;
+            handleFirestoreError(error, OperationType.GET, 'users/' + user.uid);
+          }
         );
-        return () => unsubscribeDoc();
       } else {
+        setUserRole(null);
         setLoading(false);
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+      }
+    };
   }, []);
 
   if (loading) {

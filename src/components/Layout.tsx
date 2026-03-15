@@ -26,18 +26,22 @@ export function Layout() {
     }
     
     let unsubscribe: (() => void) | undefined;
+    let isMounted = true;
     
     import('firebase/firestore').then(({ doc, onSnapshot }) => {
+      if (!isMounted) return;
       unsubscribe = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
         if (docSnap.exists()) {
           setUserData(docSnap.data());
         }
       }, (error) => {
+        if (!auth.currentUser) return;
         console.error("Firestore error in Layout:", error);
       });
     });
     
     return () => {
+      isMounted = false;
       if (unsubscribe) {
         unsubscribe();
       }

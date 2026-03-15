@@ -20,7 +20,10 @@ export function ClientDashboard() {
           setUserData(docSnap.data());
         }
       },
-      (error) => handleFirestoreError(error, OperationType.GET, 'users/' + auth.currentUser?.uid)
+      (error) => {
+        if (!auth.currentUser) return;
+        handleFirestoreError(error, OperationType.GET, 'users/' + auth.currentUser?.uid);
+      }
     );
 
     const visitsQuery = query(
@@ -36,7 +39,10 @@ export function ClientDashboard() {
         setVisits(visitsData);
         setLoading(false);
       },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'visits')
+      (error) => {
+        if (!auth.currentUser) return;
+        handleFirestoreError(error, OperationType.LIST, 'visits');
+      }
     );
 
     return () => {
