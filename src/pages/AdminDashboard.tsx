@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { collection, doc, onSnapshot, query, updateDoc, orderBy, addDoc, serverTimestamp, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, updateDoc, orderBy, addDoc, serverTimestamp, where, deleteDoc } from 'firebase/firestore';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Minus, Plus, Search, User, History, Edit2, Check, X, Eye, MapPin, Phone, Mail, Calendar } from 'lucide-react';
+import { Minus, Plus, Search, User, History, Edit2, Check, X, Eye, MapPin, Phone, Mail, Calendar, Trash2, Key } from 'lucide-react';
 
 export function AdminDashboard() {
   const [clients, setClients] = useState<any[]>([]);
@@ -12,6 +13,8 @@ export function AdminDashboard() {
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [clientVisits, setClientVisits] = useState<any[]>([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<any | null>(null);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -99,6 +102,29 @@ export function AdminDashboard() {
   const cancelEditing = () => {
     setEditingUserId(null);
     setEditNameValue('');
+  };
+
+  const handleDeleteClient = async () => {
+    if (!clientToDelete) return;
+    try {
+      await deleteDoc(doc(db, 'users', clientToDelete.id));
+      setClientToDelete(null);
+      if (selectedClient?.id === clientToDelete.id) {
+        setSelectedClient(null);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${clientToDelete.id}`);
+    }
+  };
+
+  const handleResetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetEmailSent(true);
+      setTimeout(() => setResetEmailSent(false), 3000);
+    } catch (error) {
+      console.error("Error sending reset email:", error);
+    }
   };
 
   const filteredClients = clients.filter(client => 
@@ -246,6 +272,13 @@ export function AdminDashboard() {
                         >
                           <Plus size={16} />
                         </button>
+                        <button
+                          onClick={() => setClientToDelete(client)}
+                          className="p-2 rounded-lg bg-stone-100 text-stone-600 hover:bg-rose-100 hover:text-rose-600 transition-colors ml-1"
+                          title="Supprimer le client"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -323,6 +356,50 @@ export function AdminDashboard() {
                   </div>
                 )}
               </div>
+
+              <div className="pt-6 border-t border-stone-100">
+                <h4 className="font-medium text-stone-800 mb-3 flex items-center gap-2">
+                  <Key size={18} className="text-stone-500" />
+                  Sécurité
+                </h4>
+                <button
+                  onClick={() => handleResetPassword(selectedClient.email)}
+                  disabled={resetEmailSent}
+                  className="w-full py-2 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Mail size={16} />
+                  {resetEmailSent ? "E-mail envoyé !" : "Envoyer un lien de réinitialisation"}
+                </button>
+                <p className="text-xs text-stone-500 mt-2 text-center">
+                  Un e-mail sera envoyé à {selectedClient.email} pour qu'il puisse choisir un nouveau mot de passe.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clientToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-xl font-serif text-stone-800 mb-2">Supprimer le client ?</h3>
+            <p className="text-stone-600 mb-6">
+              Êtes-vous sûr de vouloir supprimer la carte de <strong>{clientToDelete.firstName || clientToDelete.lastName ? `${clientToDelete.firstName || ''} ${clientToDelete.lastName || ''}` : clientToDelete.displayName}</strong> ? Cette action est irréversible et supprimera son solde de points.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setClientToDelete(null)}
+                className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteClient}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+              >
+                <Trash2 size={16} />
+                Supprimer
+              </button>
             </div>
           </div>
         </div>
