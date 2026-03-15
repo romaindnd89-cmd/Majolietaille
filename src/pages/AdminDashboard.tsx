@@ -113,7 +113,7 @@ export function AdminDashboard() {
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Non authentifié');
 
-      const response = await fetch('/delete-user', {
+      const response = await fetch('/api/admin/delete-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,16 +125,8 @@ export function AdminDashboard() {
       });
 
       if (!response.ok) {
-        let errorMessage = 'Erreur lors de la suppression de l\'utilisateur';
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-          const data = await response.json();
-          errorMessage = data.error || errorMessage;
-        } else {
-          const text = await response.text();
-          console.error('Non-JSON error response:', text);
-        }
-        throw new Error(errorMessage);
+        const data = await response.json();
+        throw new Error(data.error || 'Erreur lors de la suppression de l\'utilisateur');
       }
 
       setClientToDelete(null);
