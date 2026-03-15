@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import path from 'path';
 
 // Initialize Firebase Admin
@@ -9,7 +9,7 @@ try {
   const serviceAccountStr = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccountStr) {
     const serviceAccount = JSON.parse(serviceAccountStr);
-    if (!admin.apps.length) {
+    if (!admin.apps?.length) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
@@ -31,7 +31,7 @@ async function startServer() {
   // API Routes
   app.post('/api/admin/change-password', async (req, res) => {
     try {
-      if (!admin.apps.length) {
+      if (!admin.apps?.length) {
         return res.status(500).json({ error: 'Le serveur n\'est pas correctement configuré avec Firebase Admin. Vérifiez la clé FIREBASE_SERVICE_ACCOUNT dans les paramètres.' });
       }
 
