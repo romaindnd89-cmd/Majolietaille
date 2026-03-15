@@ -29,10 +29,10 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
-  app.post('/api/admin/change-password', async (req, res) => {
+  app.post('/delete-user', async (req, res) => {
     try {
       if (!admin.apps?.length) {
-        return res.status(500).json({ error: 'Le serveur n\'est pas correctement configuré avec Firebase Admin. Vérifiez la clé FIREBASE_SERVICE_ACCOUNT dans les paramètres.' });
+        return res.status(500).json({ error: 'Le serveur n\'est pas correctement configuré avec Firebase Admin.' });
       }
 
       const authHeader = req.headers.authorization;
@@ -42,25 +42,31 @@ async function startServer() {
       const idToken = authHeader.split('Bearer ')[1];
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       
-      // Verify admin status from Firestore
-      const db = admin.firestore();
-      const userDoc = await db.collection('users').doc(decodedToken.uid).get();
-      if (!userDoc.exists || userDoc.data()?.role !== 'admin') {
+      // Admin check by email
+      const ADMIN_EMAIL = 'Supercrevette89@hotmail.fr';
+      if (decodedToken.email !== ADMIN_EMAIL) {
         return res.status(403).json({ error: 'Accès refusé : droits administrateur requis' });
       }
 
-      const { targetUserId, newPassword } = req.body;
-      if (!targetUserId || !newPassword || newPassword.length < 6) {
-        return res.status(400).json({ error: 'Données invalides. Le mot de passe doit faire au moins 6 caractères.' });
+      const { targetUserId } = req.body;
+      if (!targetUserId) {
+        return res.status(400).json({ error: 'UID de l\'utilisateur requis.' });
       }
 
-      await admin.auth().updateUser(targetUserId, {
-        password: newPassword
-      });
+      // Delete user from Auth
+      await admin.auth().deleteUser(targetUserId);
+      
+      // Delete user document from Firestore if it exists
+      try {
+        await admin.firestore().collection('users').doc(targetUserId).delete();
+      } catch (e) {
+        console.warn(`Could not delete user document for ${targetUserId}, it might not exist.`);
+      }
 
+      console.log(`Successfully deleted user: ${targetUserId}`);
       res.json({ success: true });
     } catch (error: any) {
-      console.error('Error changing password:', error);
+      console.error('Error deleting user:', error);
       res.status(500).json({ error: error.message || 'Erreur interne du serveur' });
     }
   });

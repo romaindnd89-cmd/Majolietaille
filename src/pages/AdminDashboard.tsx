@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { collection, doc, onSnapshot, query, updateDoc, orderBy, addDoc, serverTimestamp, where, deleteDoc } from 'firebase/firestore';
-import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Minus, Plus, Search, User, History, Edit2, Check, X, Eye, MapPin, Phone, Mail, Calendar, Trash2, Key } from 'lucide-react';
+import { Minus, Plus, Search, User, History, Edit2, Check, X, Eye, MapPin, Phone, Mail, Calendar, Trash2 } from 'lucide-react';
+import { getBadge } from '../constants';
 
 export function AdminDashboard() {
   const [clients, setClients] = useState<any[]>([]);
@@ -14,14 +14,6 @@ export function AdminDashboard() {
   const [clientVisits, setClientVisits] = useState<any[]>([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
-  const [resetEmailSent, setResetEmailSent] = useState(false);
-  
-  // Password change state
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
-  const [changePasswordError, setChangePasswordError] = useState('');
-  const [changePasswordSuccess, setChangePasswordSuccess] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -118,79 +110,40 @@ export function AdminDashboard() {
   const handleDeleteClient = async () => {
     if (!clientToDelete) return;
     try {
-      await deleteDoc(doc(db, 'users', clientToDelete.id));
-      setClientToDelete(null);
-      if (selectedClient?.id === clientToDelete.id) {
-        setSelectedClient(null);
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${clientToDelete.id}`);
-    }
-  };
-
-  const handleResetPassword = async (email: string) => {
-    try {
-      await sendPasswordResetEmail(auth, email);
-      setResetEmailSent(true);
-      setTimeout(() => setResetEmailSent(false), 3000);
-    } catch (error: any) {
-      console.error("Error sending reset email:", error);
-      alert("Erreur lors de l'envoi de l'email : " + error.message);
-    }
-  };
-
-  const handleDirectPasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedClient || !newPassword || newPassword.length < 6) {
-      setChangePasswordError('Le mot de passe doit contenir au moins 6 caractères.');
-      return;
-    }
-
-    setChangePasswordLoading(true);
-    setChangePasswordError('');
-    setChangePasswordSuccess(false);
-
-    try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Non authentifié');
 
-      const response = await fetch('/api/admin/change-password', {
+      const response = await fetch('/delete-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          targetUserId: selectedClient.id,
-          newPassword: newPassword
+          targetUserId: clientToDelete.id
         })
       });
 
-      const contentType = response.headers.get("content-type");
-      let data;
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        console.error("Server returned non-JSON:", text);
-        throw new Error('Le serveur a retourné une réponse invalide. La clé Firebase est peut-être mal configurée ou le serveur redémarre.');
-      }
-
       if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors du changement de mot de passe');
+        let errorMessage = 'Erreur lors de la suppression de l\'utilisateur';
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } else {
+          const text = await response.text();
+          console.error('Non-JSON error response:', text);
+        }
+        throw new Error(errorMessage);
       }
 
-      setChangePasswordSuccess(true);
-      setNewPassword('');
-      setTimeout(() => {
-        setIsChangingPassword(false);
-        setChangePasswordSuccess(false);
-      }, 3000);
+      setClientToDelete(null);
+      if (selectedClient?.id === clientToDelete.id) {
+        setSelectedClient(null);
+      }
     } catch (error: any) {
-      console.error("Error changing password directly:", error);
-      setChangePasswordError(error.message);
-    } finally {
-      setChangePasswordLoading(false);
+      console.error("Error deleting user:", error);
+      alert("Erreur lors de la suppression : " + error.message);
     }
   };
 
@@ -306,14 +259,14 @@ export function AdminDashboard() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-medium text-sm">
-                        {client.points || 0} pts
-                      </div>
-                      {client.points >= 10 && (
-                        <div className="text-xs text-emerald-600 mt-1 font-medium">
-                          {Math.floor(client.points / 10)} récompense(s)
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-medium text-sm">
+                          {client.points || 0} pts
                         </div>
-                      )}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getBadge(client.points || 0).color}`}>
+                          {getBadge(client.points || 0).name}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
@@ -395,7 +348,12 @@ export function AdminDashboard() {
               </div>
 
               <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 flex justify-between items-center">
-                <span className="font-medium text-rose-800">Solde de points</span>
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium text-rose-800">Solde de points</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold w-fit ${getBadge(selectedClient.points || 0).color}`}>
+                    {getBadge(selectedClient.points || 0).name}
+                  </span>
+                </div>
                 <span className="text-2xl font-serif text-rose-600">{selectedClient.points || 0}</span>
               </div>
 
@@ -421,84 +379,6 @@ export function AdminDashboard() {
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-
-              <div className="pt-6 border-t border-stone-100">
-                <h4 className="font-medium text-stone-800 mb-3 flex items-center gap-2">
-                  <Key size={18} className="text-stone-500" />
-                  Sécurité
-                </h4>
-                
-                {!isChangingPassword ? (
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => setIsChangingPassword(true)}
-                      className="w-full py-2 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Edit2 size={16} />
-                      Changer le mot de passe manuellement
-                    </button>
-                    
-                    <button
-                      onClick={() => handleResetPassword(selectedClient.email)}
-                      disabled={resetEmailSent}
-                      className="w-full py-2 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Mail size={16} />
-                      {resetEmailSent ? "E-mail envoyé !" : "Envoyer un lien de réinitialisation"}
-                    </button>
-                    <p className="text-xs text-stone-500 mt-2 text-center">
-                      Un e-mail sera envoyé à {selectedClient.email} pour qu'il puisse choisir un nouveau mot de passe.
-                    </p>
-                  </div>
-                ) : (
-                  <form onSubmit={handleDirectPasswordChange} className="space-y-3 bg-stone-50 p-4 rounded-xl border border-stone-200">
-                    <h5 className="text-sm font-medium text-stone-800 mb-2">Nouveau mot de passe</h5>
-                    
-                    {changePasswordError && (
-                      <div className="text-xs text-rose-600 bg-rose-50 p-2 rounded border border-rose-100">
-                        {changePasswordError}
-                      </div>
-                    )}
-                    
-                    {changePasswordSuccess && (
-                      <div className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded border border-emerald-100 flex items-center gap-1">
-                        <Check size={14} /> Mot de passe modifié avec succès !
-                      </div>
-                    )}
-
-                    <input
-                      type="text"
-                      placeholder="Min. 6 caractères"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 text-sm"
-                      disabled={changePasswordLoading || changePasswordSuccess}
-                    />
-                    
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsChangingPassword(false);
-                          setNewPassword('');
-                          setChangePasswordError('');
-                        }}
-                        className="flex-1 py-2 px-3 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 rounded-lg font-medium transition-colors text-sm"
-                        disabled={changePasswordLoading}
-                      >
-                        Annuler
-                      </button>
-                      <button
-                        type="submit"
-                        className="flex-1 py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
-                        disabled={changePasswordLoading || changePasswordSuccess || newPassword.length < 6}
-                      >
-                        {changePasswordLoading ? 'En cours...' : 'Valider'}
-                      </button>
-                    </div>
-                  </form>
                 )}
               </div>
             </div>
