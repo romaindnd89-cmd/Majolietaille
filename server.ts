@@ -29,7 +29,7 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
-  app.post('/api/admin/delete-user', async (req, res) => {
+  app.post('/delete-user', async (req, res) => {
     try {
       if (!admin.apps?.length) {
         return res.status(500).json({ error: 'Le serveur n\'est pas correctement configuré avec Firebase Admin.' });

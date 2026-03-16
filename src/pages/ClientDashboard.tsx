@@ -65,6 +65,17 @@ export function ClientDashboard() {
     return <div className="text-center text-stone-500">Profil introuvable.</div>;
   }
 
+  if (userData.archived) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-12 bg-white rounded-3xl shadow-sm border border-stone-100">
+        <h2 className="text-2xl font-serif text-stone-800 mb-4">Compte archivé</h2>
+        <p className="text-stone-500">
+          Votre compte a été archivé. Veuillez contacter l'administrateur si vous pensez qu'il s'agit d'une erreur.
+        </p>
+      </div>
+    );
+  }
+
   const MAX_POINTS = 10;
   const currentPoints = userData.points || 0;
   const filledPoints = currentPoints % MAX_POINTS;

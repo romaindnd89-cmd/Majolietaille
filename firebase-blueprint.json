@@ -35,6 +35,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The timestamp when the user profile was created."
+        },
+        "archived": {
+          "type": "boolean",
+          "description": "Whether the client is archived (in the trash)."
         }
       },
       "required": ["uid", "email", "role", "points", "createdAt"]

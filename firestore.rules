@@ -72,7 +72,7 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidUser(data) {
-      let allowedFields = ['uid', 'email', 'displayName', 'photoURL', 'role', 'points', 'createdAt', 'firstName', 'lastName', 'city', 'phone'];
+      let allowedFields = ['uid', 'email', 'displayName', 'photoURL', 'role', 'points', 'createdAt', 'firstName', 'lastName', 'city', 'phone', 'archived'];
       return hasOnlyAllowedFields(allowedFields) &&
              hasRequiredFields(['uid', 'email', 'role', 'points', 'createdAt']) &&
              data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
@@ -83,6 +83,7 @@ service cloud.firestore {
              (!('lastName' in data) || (data.lastName is string && data.lastName.size() < 100)) &&
              (!('city' in data) || (data.city is string && data.city.size() < 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() <= 20)) &&
+             (!('archived' in data) || data.archived is bool) &&
              data.role in ['admin', 'client'] &&
              data.points is number && data.points >= 0 &&
              data.createdAt is timestamp;
@@ -126,7 +127,8 @@ service cloud.firestore {
                         request.resource.data.role == resource.data.role &&
                         request.resource.data.points == resource.data.points &&
                         request.resource.data.email == resource.data.email &&
-                        request.resource.data.createdAt == resource.data.createdAt
+                        request.resource.data.createdAt == resource.data.createdAt &&
+                        request.resource.data.get('archived', false) == resource.data.get('archived', false)
                       ) || 
                       isAdmin()
                     );

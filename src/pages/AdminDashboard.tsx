@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { collection, doc, onSnapshot, query, updateDoc, orderBy, addDoc, serverTimestamp, where, deleteDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Minus, Plus, Search, User, History, Edit2, Check, X, Eye, MapPin, Phone, Mail, Calendar, Trash2 } from 'lucide-react';
+import { Minus, Plus, Search, User, History, Edit2, Check, X, Eye, MapPin, Phone, Mail, Calendar, Trash2, Archive, RefreshCcw } from 'lucide-react';
 import { getBadge } from '../constants';
 
 export function AdminDashboard() {
@@ -14,6 +14,8 @@ export function AdminDashboard() {
   const [clientVisits, setClientVisits] = useState<any[]>([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
+  const [clientToRestore, setClientToRestore] = useState<any | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -107,44 +109,44 @@ export function AdminDashboard() {
     setEditNameValue('');
   };
 
-  const handleDeleteClient = async () => {
+  const handleArchiveClient = async () => {
     if (!clientToDelete) return;
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Non authentifié');
-
-      const response = await fetch('/api/admin/delete-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          targetUserId: clientToDelete.id
-        })
+      await updateDoc(doc(db, 'users', clientToDelete.id), {
+        archived: true
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Erreur lors de la suppression de l\'utilisateur');
-      }
-
       setClientToDelete(null);
       if (selectedClient?.id === clientToDelete.id) {
         setSelectedClient(null);
       }
     } catch (error: any) {
-      console.error("Error deleting user:", error);
-      alert("Erreur lors de la suppression : " + error.message);
+      console.error("Error archiving user:", error);
+      alert("Erreur lors de l'archivage : " + error.message);
     }
   };
 
-  const filteredClients = clients.filter(client => 
-    client.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleRestoreClient = async () => {
+    if (!clientToRestore) return;
+    try {
+      await updateDoc(doc(db, 'users', clientToRestore.id), {
+        archived: false
+      });
+      setClientToRestore(null);
+    } catch (error: any) {
+      console.error("Error restoring user:", error);
+      alert("Erreur lors de la restauration : " + error.message);
+    }
+  };
+
+  const filteredClients = clients.filter(client => {
+    const matchesSearch = client.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const isArchived = client.archived === true;
+    return matchesSearch && (showArchived ? isArchived : !isArchived);
+  });
 
   if (loading) {
     return <div className="text-center py-12 text-stone-500">Chargement des clients...</div>;
@@ -153,7 +155,23 @@ export function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <h2 className="text-3xl font-serif text-stone-800">Gestion des Clients</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-3xl font-serif text-stone-800">Gestion des Clients</h2>
+          <div className="flex bg-stone-100 p-1 rounded-xl">
+            <button
+              onClick={() => setShowArchived(false)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${!showArchived ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+            >
+              Actifs
+            </button>
+            <button
+              onClick={() => setShowArchived(true)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${showArchived ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+            >
+              Archives
+            </button>
+          </div>
+        </div>
         
         <div className="relative w-full sm:w-72">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-stone-400">
@@ -269,28 +287,40 @@ export function AdminDashboard() {
                         >
                           <Eye size={16} />
                         </button>
-                        <button
-                          onClick={() => updatePoints(client.id, client.points || 0, -1)}
-                          disabled={(client.points || 0) <= 0}
-                          className="p-2 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          title="Retirer un point"
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <button
-                          onClick={() => updatePoints(client.id, client.points || 0, 1)}
-                          className="p-2 rounded-lg bg-rose-100 text-rose-600 hover:bg-rose-200 transition-colors"
-                          title="Ajouter un point"
-                        >
-                          <Plus size={16} />
-                        </button>
-                        <button
-                          onClick={() => setClientToDelete(client)}
-                          className="p-2 rounded-lg bg-stone-100 text-stone-600 hover:bg-rose-100 hover:text-rose-600 transition-colors ml-1"
-                          title="Supprimer le client"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {!showArchived ? (
+                          <>
+                            <button
+                              onClick={() => updatePoints(client.id, client.points || 0, -1)}
+                              disabled={(client.points || 0) <= 0}
+                              className="p-2 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              title="Retirer un point"
+                            >
+                              <Minus size={16} />
+                            </button>
+                            <button
+                              onClick={() => updatePoints(client.id, client.points || 0, 1)}
+                              className="p-2 rounded-lg bg-rose-100 text-rose-600 hover:bg-rose-200 transition-colors"
+                              title="Ajouter un point"
+                            >
+                              <Plus size={16} />
+                            </button>
+                            <button
+                              onClick={() => setClientToDelete(client)}
+                              className="p-2 rounded-lg bg-stone-100 text-stone-600 hover:bg-rose-100 hover:text-rose-600 transition-colors ml-1"
+                              title="Archiver le client"
+                            >
+                              <Archive size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setClientToRestore(client)}
+                            className="p-2 rounded-lg bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors ml-1"
+                            title="Restaurer le client"
+                          >
+                            <RefreshCcw size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -381,9 +411,9 @@ export function AdminDashboard() {
       {clientToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-xl">
-            <h3 className="text-xl font-serif text-stone-800 mb-2">Supprimer le client ?</h3>
+            <h3 className="text-xl font-serif text-stone-800 mb-2">Archiver le client ?</h3>
             <p className="text-stone-600 mb-6">
-              Êtes-vous sûr de vouloir supprimer la carte de <strong>{clientToDelete.firstName || clientToDelete.lastName ? `${clientToDelete.firstName || ''} ${clientToDelete.lastName || ''}` : clientToDelete.displayName}</strong> ? Cette action est irréversible et supprimera son solde de points.
+              Êtes-vous sûr de vouloir archiver la carte de <strong>{clientToDelete.firstName || clientToDelete.lastName ? `${clientToDelete.firstName || ''} ${clientToDelete.lastName || ''}` : clientToDelete.displayName}</strong> ? Vous pourrez la restaurer plus tard depuis les archives.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -393,11 +423,37 @@ export function AdminDashboard() {
                 Annuler
               </button>
               <button
-                onClick={handleDeleteClient}
+                onClick={handleArchiveClient}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
               >
-                <Trash2 size={16} />
-                Supprimer
+                <Archive size={16} />
+                Archiver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clientToRestore && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-xl font-serif text-stone-800 mb-2">Restaurer le client ?</h3>
+            <p className="text-stone-600 mb-6">
+              Voulez-vous restaurer la carte de <strong>{clientToRestore.firstName || clientToRestore.lastName ? `${clientToRestore.firstName || ''} ${clientToRestore.lastName || ''}` : clientToRestore.displayName}</strong> ?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setClientToRestore(null)}
+                className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleRestoreClient}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+              >
+                <RefreshCcw size={16} />
+                Restaurer
               </button>
             </div>
           </div>
