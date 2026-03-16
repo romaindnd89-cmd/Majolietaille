@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, doc, onSnapshot, query, updateDoc, orderBy, addDoc, serverTimestamp, where, deleteDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Minus, Plus, Search, User, History, Edit2, Check, X, Eye, MapPin, Phone, Mail, Calendar, Trash2, Archive, RefreshCcw } from 'lucide-react';
-import { getBadge } from '../constants';
+import { getBadge, getCustomerNumber } from '../constants';
 
 export function AdminDashboard() {
   const [clients, setClients] = useState<any[]>([]);
@@ -139,10 +139,14 @@ export function AdminDashboard() {
   };
 
   const filteredClients = clients.filter(client => {
+    // Generate a simple number based on the UID and initials
+    const customerNumber = getCustomerNumber(client);
+    
     const matchesSearch = client.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customerNumber.toLowerCase().includes(searchTerm.toLowerCase());
     
     const isArchived = client.archived === true;
     return matchesSearch && (showArchived ? isArchived : !isArchived);
@@ -195,6 +199,9 @@ export function AdminDashboard() {
                 <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Client
                 </th>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
+                  N° Client
+                </th>
                 <th scope="col" className="px-6 py-4 text-center text-xs font-medium text-stone-500 uppercase tracking-wider">
                   Points
                 </th>
@@ -206,7 +213,7 @@ export function AdminDashboard() {
             <tbody className="bg-white divide-y divide-stone-100">
               {filteredClients.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-stone-500">
+                  <td colSpan={4} className="px-6 py-8 text-center text-stone-500">
                     Aucun client trouvé.
                   </td>
                 </tr>
@@ -266,6 +273,11 @@ export function AdminDashboard() {
                             </div>
                           )}
                         </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-mono font-medium text-stone-600 bg-stone-100 px-2 py-1 rounded w-fit tracking-wider">
+                        {getCustomerNumber(client)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -349,6 +361,9 @@ export function AdminDashboard() {
                     {selectedClient.firstName || selectedClient.lastName 
                       ? `${selectedClient.firstName || ''} ${selectedClient.lastName || ''}`.trim() 
                       : selectedClient.displayName || 'Sans nom'}
+                  </span>
+                  <span className="ml-auto text-sm font-mono font-medium text-stone-500 bg-stone-200 px-2 py-1 rounded tracking-wider">
+                    {getCustomerNumber(selectedClient)}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-stone-600">
