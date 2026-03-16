@@ -288,6 +288,19 @@ export function AdminDashboard() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getBadge(client.points || 0).color}`}>
                           {getBadge(client.points || 0).name}
                         </span>
+                        {Math.floor((client.points || 0) / 10) > 0 && !showArchived && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updatePoints(client.id, client.points || 0, -10);
+                            }}
+                            className="mt-1 inline-flex items-center justify-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs hover:bg-emerald-200 transition-colors cursor-pointer"
+                            title="Valider une récompense (-10 pts)"
+                          >
+                            <Gift size={12} className="mr-1" />
+                            {Math.floor((client.points || 0) / 10)} Récompense{Math.floor((client.points || 0) / 10) > 1 ? 's' : ''}
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -391,7 +404,19 @@ export function AdminDashboard() {
                     {getBadge(selectedClient.points || 0).name}
                   </span>
                 </div>
-                <span className="text-2xl font-serif text-rose-600">{selectedClient.points || 0}</span>
+                <div className="flex items-center gap-4">
+                  {Math.floor((selectedClient.points || 0) / 10) > 0 && !selectedClient.archived && (
+                    <button
+                      onClick={() => updatePoints(selectedClient.id, selectedClient.points || 0, -10)}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-200 transition-colors"
+                      title="Valider une récompense (-10 pts)"
+                    >
+                      <Gift size={16} />
+                      {Math.floor((selectedClient.points || 0) / 10)} Récompense{Math.floor((selectedClient.points || 0) / 10) > 1 ? 's' : ''}
+                    </button>
+                  )}
+                  <span className="text-2xl font-serif text-rose-600">{selectedClient.points || 0}</span>
+                </div>
               </div>
 
               <div>
